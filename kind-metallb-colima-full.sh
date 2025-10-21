@@ -10,6 +10,9 @@ KIND_SINGLE_NODE_CONFIG="/tmp/kind-single-node-config.yaml"
 KIND_MULTI_NODE_CONFIG="/tmp/kind-multi-node-config"
 METALLB_KIND_CONFIG="/tmp/metallb-kind-config.yaml"
 METALLB_VERSION="v0.14.5"
+# Kubernetes version (shared between kind and minikube)
+KUBERNETES_VERSION="v1.30.13"
+KIND_NODE_IMAGE="kindest/node:$KUBERNETES_VERSION"
 METALLB_NAMESPACE="metallb-system"
 # Set the test app label selector to test service of the type LoadBalancer on a kind cluster in Colima
 TEST_APP_LABEL="http-echo"
@@ -35,18 +38,20 @@ if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
   show_help
 fi
 
-# Check if METALLB_VERSION_VERSION and KIND_NODE_IMAGE are provided as arguments.
+
+# Optionally print a message if defaults are used
 if [ -z "$1" ] || [ -z "$2" ]; then
-  echo -e "${RED} Error: Missing arguments. Use -h or --help ${NC} ℹ️ "
-  show_help
+  echo -e "${YELLOW}⚠️  Warning: Using default values for missing arguments.${NC}"
+  echo -e "METALLB_VERSION=${METALLB_VERSION}, KIND_NODE_IMAGE=${KIND_NODE_IMAGE}"
 fi
-
-
-#Set configuration parameters
-export METALLB_VERSION="$1"
-export KIND_NODE_IMAGE="$2"
-
-
+# Override defaults if arguments are provided
+if [ -n "$1" ]; then
+  METALLB_VERSION="$1"
+fi
+if [ -n "$2" ]; then
+  KIND_NODE_IMAGE="$2"
+fi
+echo -e "${GREEN}▶ Using METALLB_VERSION=${METALLB_VERSION}, KIND_NODE_IMAGE=${KIND_NODE_IMAGE}${NC}"
 # Execute the colima list command and capture the output.
 colima_status=$(colima list)
 
@@ -116,34 +121,33 @@ else
   kubectl config use-context kind-kind
 fi
 
-export colima_host_ip=$(ifconfig bridge100 | grep "inet " | cut -d' ' -f2)
+colima_host_ip=$(ifconfig bridge100 | grep "inet " | cut -d' ' -f2)
 echo -e "${GREEN}▶ Colima host IP: $colima_host_ip${NC}"
 
 sleep 1
 
-export colima_vm_ip=$(colima list | grep docker | awk '{print $8}')
+colima_vm_ip=$(colima list | grep docker | awk '{print $8}')
 echo -e "${GREEN}▶ Colima VM IP: $colima_vm_ip${NC}"
 
 sleep 1
 
-export colima_kind_cidr=$(docker network inspect kind -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]+')
+colima_kind_cidr=$(docker network inspect kind -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]+')
 echo -e "${GREEN}▶ Kind CIDR: $colima_kind_cidr${NC}"
 
 sleep 1
 
-export colima_kind_cidr_short=$(echo $colima_kind_cidr | cut -d. -f1,2)
+colima_kind_cidr_short=$(echo $colima_kind_cidr | cut -d. -f1,2)
 echo -e "${GREEN}▶ Kind CIDR (short): $colima_kind_cidr_short${NC}"
 
 sleep 1
 
-export colima_vm_iface=$(colima ssh -- ip -br address show to $colima_vm_ip | cut -d' ' -f1)
+colima_vm_iface=$(colima ssh -- ip -br address show to $colima_vm_ip | cut -d' ' -f1)
 echo -e "${GREEN}▶ Colima VM iface: $colima_vm_iface${NC}"
 
 sleep 1
 
-export colima_kind_iface=$(colima ssh -- ip -br address show to $colima_kind_cidr | cut -d' ' -f1)
+colima_kind_iface=$(colima ssh -- ip -br address show to $colima_kind_cidr | cut -d' ' -f1)
 echo -e "${GREEN}▶ Colima Kind iface: $colima_kind_iface${NC}"
-
 
 echo -e "${GREEN}▶ Configuring Mac routing to access Colima VM directly from the Mac...${NC}🛠️"
 
@@ -193,8 +197,6 @@ if [[ "$COLIMA_NEEDS_SETUP" == "1" ]]; then
   #colima ssh -- bash -c "$ssh_cmd"
 fi
 
-
-
 echo -e "${GREEN}▶ Installing MetalLB...${NC}🚀"
 kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/${METALLB_VERSION}/config/manifests/metallb-native.yaml
 
@@ -229,6 +231,24 @@ echo -e "${GREEN}▶ Using MetalLB range: ${METALLB_RANGE_START}-${METALLB_RANGE
 #  name: l2adv
 #  namespace: $METALLB_NAMESPACE
 #EOF
+
+# Multi-line YAML configuration for metallb (kind)
+cat <<EOF > $METALLB_KIND_CONFIG
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: colima-kind-pool
+  namespace: metallb-system
+spec:
+  addresses:
+  - NETWORK_PREFIX.200-NETWORK_PREFIX.250
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: empty
+  namespace: metallb-system
+EOF
 
 
 # Double check if METALLB_KIND_CONFIG, METALLB_RANGE_START, and METALLB_RANGE_END are set

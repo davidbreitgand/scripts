@@ -9,9 +9,9 @@ set -e
 KIND_SINGLE_NODE_CONFIG="/tmp/kind-single-node-config.yaml"
 KIND_MULTI_NODE_CONFIG="/tmp/kind-multi-node-config"
 METALLB_KIND_CONFIG="/tmp/metallb-kind-config.yaml"
-METALLB_VERSION="v0.14.5"
+METALLB_VERSION="v0.15.2"
 # Kubernetes version (shared between kind and minikube)
-KUBERNETES_VERSION="v1.30.13"
+KUBERNETES_VERSION="v1.34.0"
 KIND_NODE_IMAGE="kindest/node:$KUBERNETES_VERSION"
 METALLB_NAMESPACE="metallb-system"
 # Set the test app label selector to test service of the type LoadBalancer on a kind cluster in Colima
@@ -74,7 +74,7 @@ echo "COLIMA_NEEDS_SETUP: $COLIMA_NEEDS_SETUP"
 
 if [[ "$COLIMA_NEEDS_SETUP" == "1" ]]; then
   echo -e "${GREEN}▶ Starting Colima with networking enabled...${NC}🚀"
-  colima start --runtime docker --cpu 8 --memory 16 --disk 200 --network-address
+  colima start --runtime docker --cpu 8 --memory 16 --disk 200 --network-address 
   # Wait for Colima to fully initialize
   sleep 5
 fi
@@ -186,12 +186,12 @@ if [[ "$COLIMA_NEEDS_SETUP" == "1" ]]; then
   ssh_cmd="sudo iptables -I FORWARD -s $colima_host_ip -d $colima_kind_cidr -j ACCEPT" #needed?
   echo -e "${GREEN}▶ ▶️ Running routing command inside Colima VM: \n${RED}$ssh_cmd${NC}"
   colima ssh -- bash -c "$ssh_cmd"  
-  echo -e "${GREEN}▶ ▶️ Installing iputils-ping (optional)${NC}🛠️"
-  ssh_cmd="sudo apt update; sudo apt install iputils-ping"
-  colima ssh -- bash -c "$ssh_cmd"
-  echo -e "${GREEN}▶ ▶️ Installing QEMU (to be able to build for linux/amd64) ${NC}🛠️"
-  ssh_cmd="sudo apt install -y qemu-user qemu-user-static"
-  colima ssh -- bash -c "$ssh_cmd"
+  #echo -e "${GREEN}▶ ▶️ Installing iputils-ping (optional)${NC}🛠️"
+  #ssh_cmd="sudo apt update; sudo apt install iputils-ping"
+  #colima ssh -- bash -c "$ssh_cmd"
+#  echo -e "${GREEN}▶ ▶️ Installing QEMU (to be able to build for linux/amd64) ${NC}🛠️" #it is here, because linux/amd64 images do not build otherwise
+#  ssh_cmd="sudo apt install -y qemu-user qemu-user-static"
+#  colima ssh -- bash -c "$ssh_cmd"
   #echo -e "${GREEN}▶ ▶️ Installing insecure Docker registry... ${NC}🚀"
   #ssh_cmd="sudo mkdir -p /etc/docker; echo '{"insecure-registries":["localhost:5000"]}' | sudo tee /etc/docker/daemon.json; sudo systemctl restart docker"
   #colima ssh -- bash -c "$ssh_cmd"

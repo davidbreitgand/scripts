@@ -188,7 +188,7 @@ if [[ "$COLIMA_NEEDS_SETUP" == "1" ]]; then
   colima ssh -- bash -c "$ssh_cmd"  
   #echo -e "${GREEN}▶ ▶️ Installing iputils-ping (optional)${NC}🛠️"
   #ssh_cmd="sudo apt update; sudo apt install iputils-ping"
-  #colima ssh -- bash -c "$ssh_cmd"
+  colima ssh -- bash -c "$ssh_cmd"
 #  echo -e "${GREEN}▶ ▶️ Installing QEMU (to be able to build for linux/amd64) ${NC}🛠️" #it is here, because linux/amd64 images do not build otherwise
 #  ssh_cmd="sudo apt install -y qemu-user qemu-user-static"
 #  colima ssh -- bash -c "$ssh_cmd"

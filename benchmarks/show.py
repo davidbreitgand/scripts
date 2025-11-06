@@ -42,6 +42,6 @@ axes[2].set_yscale('log')
 axes[2].legend(title="Method")
 
 plt.tight_layout()
-plt.show()
+#plt.show()
 plt.savefig("benchmark_summary.png")
 print("✅ Combined visualization saved as benchmark_summary.png")

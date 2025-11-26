@@ -12,8 +12,16 @@ KIND_CLUSTER_NAME="kind" # Change this if your kind cluster has a different name
 GATEWAY_PROVIDER="istio" # Change this to your desired gateway controller, e.g., istio, contour, etc.
 IGW_CHART_VERSION="v1.1.0" # Version of the Gateway API Inference Extension Helm chart
 
-MODEL_1="vllm-llama3-8b-instruct"
-MODEL_2="vllm-deepseek-r1"
+MODEL_1="meta-llama/Llama-3.1-8B-Instruct"
+MODEL_2="deepseek/vllm-deepseek-r1"
+
+MODEL_DEPLOYMENT_1="vllm-llama3-8b-instruct"
+MODEL_DEPLOYMENT_2="vllm-deepseek-r1"
+
+MODEL_1_LORA_1="food-review-1"
+MODEL_2_LORA_1="ski-resorts"
+MODEL_2_LORA_2="movie-critique"
+
 
 YAML_HOME=/Users/davidbr/git/yaml
 HOME=/Users/davidbr/git/clean/gateway-api-inference-extension 
@@ -56,12 +64,12 @@ echo -e "${GREEN}▶ The Helm install command automatically installs the endpoin
 
 # Install Helm chart for InferencePool and EndpointPicker
 helm install "${MODEL_1}" \
---set inferencePool.modelServers.matchLabels.app="${MODEL_1}" \
+--set inferencePool.modelServers.matchLabels.app="${MODEL_DEPLOYMENT_1}" \
 --set provider.name=$GATEWAY_PROVIDER \
 --version $IGW_CHART_VERSION \
 oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
 # wait for deloyment to be ready
-kubectl wait --for=condition=available --timeout=120s "deployment/${MODEL_1}-epp"
+kubectl wait --for=condition=available --timeout=120s "deployment/${MODEL_DEPLOYMENT_1}-epp"
 
 echo -e "${GREEN}▶ InferencePool and EndpointPicker extensions deployed.${NC}"
 
@@ -105,11 +113,12 @@ PORT=80
 
 curl -i ${IP}:${PORT}/v1/completions -H 'Content-Type: application/json' -d '{
 "model": "food-review-1",
+"model": "${MODEL_1_LORA_1}",
 "prompt": "Write as if you were a critic: San Francisco",
 "max_tokens": 100,
 "temperature": 0
 }'
-echo -e "\n${GREEN}▶ First test completed for ${MODEL_1}.${NC}"
+echo -e "\n${GREEN}▶ First test completed for ${MODEL_1_LORA_1}.${NC}"
 sleep 2
 
 # Deploy Second InferencePool and Endpoint Picker Extensions
@@ -146,7 +155,8 @@ sleep 1
 
 #deploy HTML Routes for demonstrating BBR
 echo -e "${GREEN}▶ Deploy httproutes for testing BBR.${NC}"
-kubectl apply -f "${YAML_HOME}/two-routes.yaml"
+#kubectl apply -f "${YAML_HOME}/two-routes.yaml" #does not have definitions for LoRAs uncomment as needed
+kubectl apply -f "${YAML_HOME}/multi-model-multi-lora-sim.yaml"
 sleep 2
 # Confirm that the HTTPRoute status conditions include Accepted=True and ResolvedRefs=True
 echo -e "${GREEN}▶ Confirming that the HTTPRoutes for BBR are ready...${NC}👀"
@@ -168,7 +178,7 @@ sleep 1
 
 for i in {1..3}; do
 	echo -e "\n ${GREEN}▶ ATTEMPT ${i}: Testing routing to ${MODEL_1} InferencePool via BBR...${NC}"
-	if ./model-test.sh "meta-llama/Llama-3.1-8B-Instruct"; then
+	if ./model-test.sh "${MODEL_1}"; then
 		echo -e "${GREEN}✅ Success on attempt ${i}${NC}"
 		break
 	else
@@ -181,7 +191,7 @@ sleep 1
 
 for i in {1..3}; do
 	echo -e "\n ${GREEN}▶ ATTEMPT ${i}: Testing routing to ${MODEL_2} InferencePool via BBR...${NC}"
-	if ./model-test.sh "deepseek/vllm-deepseek-r1"; then
+	if ./model-test.sh "${MODEL_2}"; then
 		echo -e "${GREEN}✅ Success on attempt ${i}${NC}"
 		break
 	else
@@ -189,6 +199,43 @@ for i in {1..3}; do
         sleep $((i * 3))
 	fi
 done
+
+sleep 1
+
+#Testing LoRAs
+for i in {1..3}; do
+	echo -e "\n ${GREEN}▶ ATTEMPT ${i}: Testing routing to LoRA ${MODEL_1_LORA_1} for base model ${MODEL_1} InferencePool via BBR...${NC}"
+	if ./model-test.sh "${MODEL_1_LORA_1}"; then
+		echo -e "${GREEN}✅ Success on attempt ${i}${NC}"
+		break
+	else
+		echo -e "${RED}❌ Attempt ${i} failed, retrying...${NC}"
+        sleep $((i * 3))
+	fi
+done
+
+for i in {1..3}; do
+	echo -e "\n ${GREEN}▶ ATTEMPT ${i}: Testing routing to LoRA ${MODEL_2_LORA_1} for base model ${MODEL_2} InferencePool via BBR...${NC}"
+	if ./model-test.sh "${MODEL_2_LORA_1}"; then
+		echo -e "${GREEN}✅ Success on attempt ${i}${NC}"
+		break
+	else
+		echo -e "${RED}❌ Attempt ${i} failed, retrying...${NC}"
+        sleep $((i * 3))
+	fi
+done
+
+for i in {1..3}; do
+	echo -e "\n ${GREEN}▶ ATTEMPT ${i}: Testing routing to LoRA ${MODEL_2_LORA_2} for base model ${MODEL_2} InferencePool via BBR...${NC}"
+	if ./model-test.sh "${MODEL_2_LORA_2}"; then
+		echo -e "${GREEN}✅ Success on attempt ${i}${NC}"
+		break
+	else
+		echo -e "${RED}❌ Attempt ${i} failed, retrying...${NC}"
+        sleep $((i * 3))
+	fi
+done
+
 
 #Remove temporary istioctl files
 echo -e "\n ${GREEN}Removing istioctl-${TAG}-osx.tar.gz and istioctl...${NC}"

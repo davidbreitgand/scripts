@@ -25,4 +25,4 @@ colima:
 
 .PHONY: clean-colima
 clean-colima:
-	$(SCRIPTS_HOME)/kind-metallb-colima-clean.sh
+	$(IGW_SCRIPTS_HOME)/kind-metallb-colima-clean.sh
